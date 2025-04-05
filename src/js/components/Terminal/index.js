@@ -13,7 +13,6 @@ import {
 
 import { os, pluginMap, uuidv4, getShortcuts, modCommands } from './terminal-utils';
 import { Base, ContainerWrapper, Note } from './styled-elements';
-
 import Bar from '../Bar';
 import Content from '../Content/index';
 import Tabs from '../Tabs/index';
@@ -86,6 +85,10 @@ class Terminal extends Component {
         method: this.showHelp,
         needsInstance: true,
       },
+      search: {
+        method: this.searchHelp,
+        needsInstance: true,
+      },
       echo: input => input.slice(1).join(' '),
       'edit-line': {
         method: this.editLine,
@@ -105,6 +108,7 @@ class Terminal extends Component {
       show: (props.msg && props.msg.length > 0) ? 'show the msg' : false,
       clear: 'clear the screen',
       help: 'list all the commands',
+      search: 'Search the web',
       echo: false,
       'edit-line': false,
     };
@@ -671,23 +675,23 @@ class Terminal extends Component {
                 (
                   <span>
                     {contents.filter(item => typeof item !== 'undefined').map((item) => {
-                    const styles = {
-                      marginRight: 5,
-                      width: 'calc(33% - 5px)',
-                      display: 'inline-block',
-                    };
-                    if (contents.length > 3) {
-                      styles.marginBottom = 5;
-                    }
-                    return (
-                      <span
-                        style={styles}
-                        key={`${item.target}-${item.rating}`}
-                      >
-                        {item.target}
-                      </span>
-                    );
-                  })}
+                      const styles = {
+                        marginRight: 5,
+                        width: 'calc(33% - 5px)',
+                        display: 'inline-block',
+                      };
+                      if (contents.length > 3) {
+                        styles.marginBottom = 5;
+                      }
+                      return (
+                        <span
+                          style={styles}
+                          key={`${item.target}-${item.rating}`}
+                        >
+                          {item.target}
+                        </span>
+                      );
+                    })}
                   </span>
                 ),
                 false,
@@ -874,6 +878,65 @@ class Terminal extends Component {
     handleLogging('info', this.printToActive);
   };
 
+
+  // List all the commands (state + user defined)
+  searchHelp = (args, printLine, runCommand, instance) => {
+    // get the repo name
+    const repoName = Object.values(args).join(" ");
+
+    const query = `
+    query {
+      search(query: "${repoName} in:name", type: REPOSITORY, first: 10) {
+        edges {
+          node {
+            ... on Repository {
+              name
+              url
+            }
+          }
+        }
+      }
+    }
+  `;
+
+    try {
+      fetch("https://api.github.com/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": ""
+        },
+        body: JSON.stringify({ query }),
+      }).then(response => {
+        // waiting for the response to come
+        // fetch just return one promise
+        // alternative -> use async/await which will wait for the response 
+        // await fetch ()
+        return response.json();
+      }).then(result => {
+        const edges = result.data.search.edges;
+        if (edges && edges.length > 0) {
+          const summaryData = [];
+
+          edges.forEach(edge => {
+            const repo = edge.node;
+            summaryData.push(`${repo.name}: ${repo.url}`);
+          });
+
+          instance.setState(prevState => ({
+            summary: [...prevState.summary, ...summaryData]
+          }));
+
+        } else {
+          printLine("❌ No repositories found.");
+        }
+      })
+    } catch (error) {
+      printLine("⚠️ Error fetching data from GitHub.");
+      // have meaningful message to be shown
+      console.error(error);
+    }
+  }
   // List all the commands (state + user defined)
   showHelp = (args, printLine, runCommand, instance) => {
     let commands = { ...this.state.commands };
@@ -896,7 +959,7 @@ class Terminal extends Component {
     for (const option of options) {
       // eslint-disable-line no-restricted-syntax
       if (descriptions[option] !== false) {
-        printLine(`${option} - ${descriptions[option]}`);
+        printLine(`${option} - ${descriptions[option]} `);
       }
     }
   };
