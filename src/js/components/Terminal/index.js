@@ -903,13 +903,12 @@ class Terminal extends Component {
       fetch("https://api.github.com/graphql", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": ""
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({ query }),
       }).then(response => {
         // waiting for the response to come
-        // fetch just return one promise
+        // fetch just return promise
         // alternative -> use async/await which will wait for the response 
         // await fetch ()
         return response.json();
